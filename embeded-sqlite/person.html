@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SQLite WASM Demo</title> 
+</head>
+<body>
+    <script src="node_modules/sql.js/dist/sql-wasm.js"></script>
+    <h1>Enter Person Details</h1>
+    <label>Name: <input type="text" id="name" required></label><br>
+    <label>Email: <input type="email" id="email" required></label><br>
+    <label>Phone: <input type="tel" id="phone" required></label><br>
+    <button onclick="addRecord()">Add Record</button><br><br>
+    <button onclick="downloadDB()">Download Database</button>
+    <script>
+        config = {
+                locateFile: filename => `node_modules/sql.js/dist/${filename}`
+        }
+        let db;
+
+        // Load the SQLite module
+        initSqlJs(config).then(SQL => {
+          db = new SQL.Database();
+          db.run("CREATE TABLE IF NOT EXISTS people (name TEXT, email TEXT, phone TEXT);");
+        });
+
+        function addRecord() {
+          const nameField = document.getElementById('name');
+          const emailField = document.getElementById('email');
+          const phoneField = document.getElementById('phone');
+
+          db.run("INSERT INTO people (name, email, phone) VALUES (?, ?, ?);", [nameField.value, emailField.value, phoneField.value]);
+
+          // Clear the input fields after adding
+          nameField.value = '';
+          emailField.value = '';
+          phoneField.value = '';
+          console.log("after del");
+        }
+
+        function downloadDB() {
+          const data = db.export();
+          const blob = new Blob([data], { type: 'application/octet-stream' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "database.sqlite";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a); // Remove the link after triggering the download
+          window.URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
