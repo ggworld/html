@@ -9,3 +9,6 @@ to generate the certificate run:
 openssl genrsa -des3 -out key.pem 2048
 see : 
 https://deliciousbrains.com/ssl-certificate-authority-for-local-https-development/
+
+
+to play the audio in the db you can use: https://base64.guru/converter/decode/audio
