@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<!-- 
+  this file is adding also order sequence to the database. 
+  -->
+<head>
+    <title>DeepSpeech Demo</title>
+</head>
+<body>
+    <h1>DeepSpeech Transcription</h1>
+    <label>Name: <input type="text" id="name"></label><br>
+    <label>Email: <input type="email" id="email"></label><br>
+    <label>Phone: <input type="tel" id="phone"></label><br><br>
+    
+    <button onclick="startRecording()">Start Recording</button>
+    <button onclick="stopRecording()" disabled id="stopButton">Stop Recording</button><br>
+    <textarea id="transcription" disabled></textarea><br><br>
+
+    <button onclick="addRecordToDB()">Add Record</button>
+    <button onclick="downloadDB()">Download Database</button>
+
+    <script src="node_modules/sql.js/dist/sql-wasm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands"></script>
+
+    <script>
+        config = {
+            locateFile: filename => `node_modules/sql.js/dist/${filename}`
+        };
+        let db;
+        let mediaRecorder;
+        let audioChunks = [];
+        let currentAudioDataUrl;
+        let recognition;
+        let currentTranscription = '';
+
+        // Load the SQLite module
+        initSqlJs(config).then(SQL => {
+            db = new SQL.Database();
+            db.run("CREATE TABLE IF NOT EXISTS records (record_order INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT, phone TEXT, comment_audio BLOB, comment_text TEXT);");
+        });
+
+        function startRecording() {
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.onresult = function(event) {
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        currentTranscription += event.results[i][0].transcript;
+                    }
+                }
+            };
+            recognition.start();
+
+            navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                mediaRecorder = new MediaRecorder(stream);
+                document.getElementById('stopButton').disabled = false;
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    audioChunks = [];
+                    const reader = new FileReader();
+                    reader.readAsDataURL(audioBlob);
+                    reader.onloadend = () => {
+                        currentAudioDataUrl = reader.result;
+                        document.getElementById('transcription').value = currentTranscription;
+                    };
+                };
+
+                mediaRecorder.start();
+            });
+        }
+
+        function stopRecording() {
+            recognition.stop();
+            mediaRecorder.stop();
+            document.getElementById('stopButton').disabled = true;
+        }
+
+        function addRecordToDB() {
+            if (!currentAudioDataUrl || !currentTranscription) {
+                alert("Please ensure the audio has been recorded and transcribed before adding to the database.");
+                return;
+            }
+            
+            const nameField = document.getElementById('name');
+            const emailField = document.getElementById('email');
+            const phoneField = document.getElementById('phone');
+
+            db.run("INSERT INTO records (name, email, phone, comment_audio, comment_text) VALUES (?, ?, ?, ?, ?);",
+                [nameField.value, emailField.value, phoneField.value, currentAudioDataUrl, currentTranscription]);
+
+            // Clear fields and variables
+            nameField.value = '';
+            emailField.value = '';
+            phoneField.value = '';
+            document.getElementById('transcription').value = '';
+            currentAudioDataUrl = null;
+            currentTranscription = '';
+        }
+
+        function downloadDB() {
+            const data = db.export();
+            const blob = new Blob([data], { type: 'application/octet-stream' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "database.sqlite";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
